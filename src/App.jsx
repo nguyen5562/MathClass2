@@ -77,22 +77,11 @@ function App() {
   // Settings
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [mascotMsg, setMascotMsg] = useState("Cùng học toán thật vui với tớ nhé! 🦖");
+  const currentAudioRef = useRef(null);
 
   // Study Screen State
   const [studyType, setStudyType] = useState('plus'); // 'plus' | 'minus' | 'multiply' | 'divide'
   const [studyNum, setStudyNum] = useState(2); // table number (1-10)
-
-  // Voice synthesis list check
-  useEffect(() => {
-    if (typeof window !== 'undefined' && window.speechSynthesis) {
-      window.speechSynthesis.getVoices();
-      if (window.speechSynthesis.onvoiceschanged !== undefined) {
-        window.speechSynthesis.onvoiceschanged = () => {
-          window.speechSynthesis.getVoices();
-        };
-      }
-    }
-  }, []);
 
   // Save to LocalStorage
   useEffect(() => {
@@ -107,25 +96,23 @@ function App() {
     localStorage.setItem('math_unlocked_stickers', JSON.stringify(unlockedStickers));
   }, [unlockedStickers]);
 
-  // Voice speech helper
+  // Voice speech helper (Google Translate TTS API for ultimate compatibility and voice quality)
   const speak = (text) => {
     if (!soundEnabled) return;
     try {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'vi-VN';
-      
-      const voices = window.speechSynthesis.getVoices();
-      const viVoice = voices.find(v => v.lang && (v.lang === 'vi-VN' || v.lang === 'vi_VN')) ||
-                      voices.find(v => v.lang && (v.lang.toLowerCase().startsWith('vi-') || v.lang.toLowerCase().startsWith('vi_') || v.lang.toLowerCase() === 'vi'));
-      if (viVoice) {
-        utterance.voice = viVoice;
-        utterance.lang = viVoice.lang;
+      if (currentAudioRef.current) {
+        currentAudioRef.current.pause();
+        currentAudioRef.current.src = "";
       }
-      utterance.rate = 0.95; // slightly slower for kids
-      window.speechSynthesis.speak(utterance);
+      
+      const cleanText = encodeURIComponent(text.replace(/[^\p{L}\s\d,!?]/gu, ''));
+      const url = `https://translate.google.com/translate_tts?ie=UTF-8&tl=vi&client=tw-ob&q=${cleanText}`;
+      
+      const audio = new Audio(url);
+      currentAudioRef.current = audio;
+      audio.play().catch(e => console.log("Audio playback interrupted:", e));
     } catch (e) {
-      console.error("Speech error:", e);
+      console.error("Audio TTS error:", e);
     }
   };
 
@@ -191,10 +178,10 @@ function App() {
     while (optionsSet.size < 4) {
       let offset = Math.floor(Math.random() * 9) - 4; // -4 to +4
       let opt = answer + offset;
-      if (opt > 0 && opt !== answer && opt < 200) {
+      if (opt > 0 && opt !== answer) {
         optionsSet.add(opt);
       } else {
-        optionsSet.add(Math.floor(Math.random() * 20) + 1);
+        optionsSet.add(Math.floor(Math.random() * currentRange) + 1);
       }
     }
     const options = Array.from(optionsSet).sort(() => Math.random() - 0.5);
@@ -277,7 +264,7 @@ function App() {
       // Play sound effects or speak
       // Wait and load next question
       setTimeout(() => {
-        if (currentStep < 10) {
+        if (currentStep < 20) {
           const nextStep = currentStep + 1;
           setCurrentStep(nextStep);
           const nextQ = generateQuestion(mode, range);
@@ -289,10 +276,10 @@ function App() {
           triggerMascotMsg('default');
           speak(nextQ.textAudio);
         } else {
-          // Finished 10 questions!
+          // Finished 20 questions!
           setShowGameFinished(true);
-          setStars(s => s + 5); // 5 bonus stars!
-          speak("Chúc mừng bé đã hoàn thành mười câu hỏi và nhận được năm sao vàng thưởng!");
+          setStars(s => s + 10); // 10 bonus stars!
+          speak("Chúc mừng bé đã hoàn thành hai mươi câu hỏi và nhận được mười sao vàng thưởng!");
           confetti({
             particleCount: 150,
             spread: 80,
@@ -657,6 +644,7 @@ function App() {
                     <option value={10}>Trong phạm vi 10</option>
                     <option value={20}>Trong phạm vi 20</option>
                     <option value={100}>Trong phạm vi 100</option>
+                    <option value={1000}>Trong phạm vi 1000</option>
                   </select>
                 </div>
               )}
@@ -681,12 +669,12 @@ function App() {
 
             {/* Caterpillar progress */}
             <div className="progress-bar-container">
-              <div className="progress-bar-fill" style={{ width: `${(currentStep - 1) * 10}%` }}>
+              <div className="progress-bar-fill" style={{ width: `${(currentStep - 1) * 5}%` }}>
                 <span className="caterpillar-head">🐛</span>
               </div>
               <span className="progress-target">🍎</span>
               <div style={{ position: 'absolute', width: '100%', textAlign: 'center', top: '1px', fontWeight: 'bold', fontSize: '0.85rem', color: '#333' }}>
-                Câu hỏi {currentStep} / 10
+                Câu hỏi {currentStep} / 20
               </div>
             </div>
 
@@ -696,7 +684,7 @@ function App() {
                 <h2 style={{ fontSize: '2.5rem', color: 'var(--color-success-dark)', marginBottom: '15px' }}>🎉 Hoàn Thành Xuất Sắc! 🎉</h2>
                 <div style={{ fontSize: '5rem', margin: '20px 0' }}>🏆✨🦕</div>
                 <p style={{ fontSize: '1.4rem', color: 'var(--text-light)', marginBottom: '30px' }}>
-                  Bé đã vượt qua 10 câu hỏi toán và nhận thêm <strong style={{ color: 'var(--color-warning-dark)' }}>⭐ 5 sao vàng</strong> thưởng!
+                  Bé đã vượt qua 20 câu hỏi toán và nhận thêm <strong style={{ color: 'var(--color-warning-dark)' }}>⭐ 10 sao vàng</strong> thưởng!
                 </p>
                 <div style={{ display: 'flex', gap: '20px', justifyContent: 'center' }}>
                   <button className="sticker-book-btn" onClick={() => startGame(mode)}>
