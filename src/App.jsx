@@ -78,6 +78,43 @@ function App() {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [mascotMsg, setMascotMsg] = useState("Cùng học toán thật vui với tớ nhé! 🦖");
   const currentAudioRef = useRef(null);
+  const bgMusicRef = useRef(null);
+
+  // Background music controller
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    if (!bgMusicRef.current) {
+      const audio = new Audio('/bgm.mp3');
+      audio.loop = true;
+      audio.volume = 0.05; // BGM volume set low so it doesn't overpower TTS
+      bgMusicRef.current = audio;
+    }
+    
+    if (soundEnabled) {
+      const playPromise = bgMusicRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          console.log("BGM autoplay prevented. Playing on click instead.", error);
+        });
+      }
+    } else {
+      bgMusicRef.current.pause();
+    }
+  }, [soundEnabled]);
+
+  // Fallback to start playing BGM on first interaction
+  useEffect(() => {
+    const handleFirstClick = () => {
+      if (soundEnabled && bgMusicRef.current && bgMusicRef.current.paused) {
+        bgMusicRef.current.play().catch(e => console.log("BGM play failed on click:", e));
+      }
+    };
+    window.addEventListener('click', handleFirstClick);
+    return () => {
+      window.removeEventListener('click', handleFirstClick);
+    };
+  }, [soundEnabled]);
 
   // Study Screen State
   const [studyType, setStudyType] = useState('plus'); // 'plus' | 'minus' | 'multiply' | 'divide'
@@ -96,7 +133,7 @@ function App() {
     localStorage.setItem('math_unlocked_stickers', JSON.stringify(unlockedStickers));
   }, [unlockedStickers]);
 
-  // Voice speech helper (Google Translate TTS API for ultimate compatibility and voice quality)
+  // Voice speech helper (Google Translate TTS - relying on no-referrer policy to bypass CORS/hotlink block)
   const speak = (text) => {
     if (!soundEnabled) return;
     try {
@@ -109,6 +146,7 @@ function App() {
       const url = `https://translate.google.com/translate_tts?ie=UTF-8&tl=vi&client=tw-ob&q=${cleanText}`;
       
       const audio = new Audio(url);
+      audio.playbackRate = 1.2; // Speak slightly faster for better responsiveness
       currentAudioRef.current = audio;
       audio.play().catch(e => console.log("Audio playback interrupted:", e));
     } catch (e) {
