@@ -86,6 +86,11 @@ function App() {
   useEffect(() => {
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       window.speechSynthesis.getVoices();
+      if (window.speechSynthesis.onvoiceschanged !== undefined) {
+        window.speechSynthesis.onvoiceschanged = () => {
+          window.speechSynthesis.getVoices();
+        };
+      }
     }
   }, []);
 
@@ -111,15 +116,16 @@ function App() {
       utterance.lang = 'vi-VN';
       
       const voices = window.speechSynthesis.getVoices();
-      const viVoice = voices.find(v => v.lang === 'vi-VN' || v.lang === 'vi_VN') ||
-                      voices.find(v => v.lang.toLowerCase().startsWith('vi-') || v.lang.toLowerCase().startsWith('vi_') || v.lang.toLowerCase() === 'vi');
+      const viVoice = voices.find(v => v.lang && (v.lang === 'vi-VN' || v.lang === 'vi_VN')) ||
+                      voices.find(v => v.lang && (v.lang.toLowerCase().startsWith('vi-') || v.lang.toLowerCase().startsWith('vi_') || v.lang.toLowerCase() === 'vi'));
       if (viVoice) {
         utterance.voice = viVoice;
+        utterance.lang = viVoice.lang;
       }
       utterance.rate = 0.95; // slightly slower for kids
       window.speechSynthesis.speak(utterance);
     } catch (e) {
-      console.error(e);
+      console.error("Speech error:", e);
     }
   };
 
