@@ -111,7 +111,8 @@ function App() {
       utterance.lang = 'vi-VN';
       
       const voices = window.speechSynthesis.getVoices();
-      const viVoice = voices.find(v => v.lang.includes('vi') || v.lang.includes('VI'));
+      const viVoice = voices.find(v => v.lang === 'vi-VN' || v.lang === 'vi_VN') ||
+                      voices.find(v => v.lang.toLowerCase().startsWith('vi-') || v.lang.toLowerCase().startsWith('vi_') || v.lang.toLowerCase() === 'vi');
       if (viVoice) {
         utterance.voice = viVoice;
       }
