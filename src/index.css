@@ -140,6 +140,7 @@ body {
   background-size: 200% 200%;
   animation: gradientText 6s ease infinite;
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
@@ -214,6 +215,7 @@ body {
   font-size: 2.4rem;
   background: linear-gradient(to right, var(--color-primary-dark), var(--color-purple));
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   margin-bottom: 12px;
 }
@@ -473,6 +475,7 @@ body {
   letter-spacing: 2px;
   background: linear-gradient(135deg, #2B2A33 0%, var(--color-primary-dark) 100%);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   text-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
@@ -648,6 +651,7 @@ body {
   font-size: 2.2rem;
   background: linear-gradient(135deg, var(--color-warning-dark) 0%, var(--color-orange) 100%);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
@@ -800,6 +804,7 @@ body {
   font-size: 2.2rem;
   background: linear-gradient(to right, var(--color-warning-dark), var(--color-orange));
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   font-weight: 800;
   margin-bottom: 12px;
@@ -941,4 +946,40 @@ body {
     padding: 16px;
     font-size: 2rem;
   }
+}
+
+/* Medal sparkle effect and finished card */
+.medal-sparkle {
+  animation: medalPulse 2s ease-in-out infinite alternate;
+}
+
+@keyframes medalPulse {
+  0% { transform: scale(1) rotate(0deg); }
+  50% { transform: scale(1.15) rotate(5deg); }
+  100% { transform: scale(1) rotate(-5deg); }
+}
+
+/* Journal list custom scrollbar */
+.journal-list::-webkit-scrollbar {
+  width: 6px;
+}
+.journal-list::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 10px;
+}
+.journal-list::-webkit-scrollbar-thumb {
+  background: var(--color-pink-light);
+  border-radius: 10px;
+}
+.journal-list::-webkit-scrollbar-thumb:hover {
+  background: var(--color-pink);
+}
+
+.journal-header-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 0 var(--color-pink);
+}
+.journal-header-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 var(--color-pink);
 }

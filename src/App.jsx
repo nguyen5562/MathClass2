@@ -52,12 +52,14 @@ function App() {
   
   // Game State
   const [currentQuestion, setCurrentQuestion] = useState(null);
-  const [currentStep, setCurrentStep] = useState(1); // 1 to 10 questions per round
+  const [currentStep, setCurrentStep] = useState(1); // 1 to 20 questions per round
   const [selectedAnswer, setSelectedAnswer] = useState(null);
   const [answered, setAnswered] = useState(false);
   const [wrongAnswersCount, setWrongAnswersCount] = useState(0);
   const [showGameFinished, setShowGameFinished] = useState(false);
   const [buttonStates, setButtonStates] = useState({}); // { optionIndex: 'correct' | 'wrong' | 'idle' }
+  const [correctFirstTryCount, setCorrectFirstTryCount] = useState(0); // Track correct on first try
+  const [latestResult, setLatestResult] = useState(null); // Track latest game result for finished screen
   
   // Rewards & Progress (Persisted in LocalStorage)
   const [stars, setStars] = useState(() => {
@@ -73,6 +75,10 @@ function App() {
     return saved ? JSON.parse(saved) : ['st1']; // first sticker free!
   });
   const [newSticker, setNewSticker] = useState(null);
+  const [records, setRecords] = useState(() => {
+    const saved = localStorage.getItem('math_records');
+    return saved ? JSON.parse(saved) : [];
+  });
 
   // Settings
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -132,6 +138,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem('math_unlocked_stickers', JSON.stringify(unlockedStickers));
   }, [unlockedStickers]);
+
+  useEffect(() => {
+    localStorage.setItem('math_records', JSON.stringify(records));
+  }, [records]);
 
   // Voice speech helper (Google Translate TTS - relying on no-referrer policy to bypass CORS/hotlink block)
   const speak = (text) => {
@@ -236,6 +246,7 @@ function App() {
     setAnswered(false);
     setSelectedAnswer(null);
     setWrongAnswersCount(0);
+    setCorrectFirstTryCount(0);
     setButtonStates({});
     
     // Choose correct range based on mode
@@ -295,6 +306,7 @@ function App() {
       if (isFirstTry) {
         setStars(s => s + 1);
         setStreak(st => st + 1);
+        setCorrectFirstTryCount(c => c + 1);
       }
       
       triggerMascotMsg('correct');
@@ -315,9 +327,62 @@ function App() {
           speak(nextQ.textAudio);
         } else {
           // Finished 20 questions!
+          const finalCorrect = correctFirstTryCount + (isFirstTry ? 1 : 0);
+          
+          // Determine medal and bonus stars
+          let medalType = 'effort';
+          let medalEmoji = '🏅';
+          let medalName = 'Huy Chương Cố Gắng';
+          let bonusStars = 2;
+          
+          if (finalCorrect === 20) {
+            medalType = 'gold';
+            medalEmoji = '🏆';
+            medalName = 'Cúp Vàng Trí Tuệ';
+            bonusStars = 15;
+          } else if (finalCorrect >= 18) {
+            medalType = 'silver';
+            medalEmoji = '🥈';
+            medalName = 'Huy Chương Bạc';
+            bonusStars = 10;
+          } else if (finalCorrect >= 15) {
+            medalType = 'bronze';
+            medalEmoji = '🥉';
+            medalName = 'Huy Chương Đồng';
+            bonusStars = 5;
+          }
+
+          // Create new record log
+          const newRecord = {
+            id: Date.now().toString(),
+            date: new Date().toLocaleDateString('vi-VN', {
+              day: '2-digit',
+              month: '2-digit'
+            }) + ' ' + new Date().toLocaleTimeString('vi-VN', {
+              hour: '2-digit',
+              minute: '2-digit'
+            }),
+            mode: mode,
+            range: (mode === 'plus' || mode === 'minus') ? `Phạm vi ${range}` : (mode === 'mixed' ? 'Hỗn hợp' : `Bảng ${studyNum}`),
+            correctCount: finalCorrect,
+            medal: medalType,
+            medalEmoji: medalEmoji,
+            medalName: medalName,
+            bonusStars: bonusStars
+          };
+
+          setRecords(prev => [newRecord, ...prev]);
+          setLatestResult({
+            correctCount: finalCorrect,
+            medalEmoji: medalEmoji,
+            medalName: medalName,
+            bonusStars: bonusStars
+          });
           setShowGameFinished(true);
-          setStars(s => s + 10); // 10 bonus stars!
-          speak("Chúc mừng bé đã hoàn thành hai mươi câu hỏi và nhận được mười sao vàng thưởng!");
+          setStars(s => s + 10 + bonusStars); // 10 completion stars + bonus stars for medal!
+          
+          speak(`Chúc mừng bé đã hoàn thành hai mươi câu hỏi! Bé trả lời đúng ${finalCorrect} câu ngay lần đầu và nhận được phần thưởng là ${medalName} cùng với ${10 + bonusStars} sao vàng!`);
+          
           confetti({
             particleCount: 150,
             spread: 80,
@@ -588,6 +653,32 @@ function App() {
             {soundEnabled ? '🔊' : '🔇'}
           </button>
           
+          <button 
+            className="journal-header-btn" 
+            style={{ 
+              background: 'white', 
+              border: '3px solid var(--color-pink-light)', 
+              borderRadius: '50px', 
+              padding: '6px 14px', 
+              fontWeight: '700', 
+              cursor: 'pointer', 
+              color: 'var(--color-pink-dark)', 
+              fontSize: '1rem',
+              boxShadow: '0 4px 0 var(--color-pink)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              transition: 'transform 0.1s, box-shadow 0.1s'
+            }}
+            onClick={() => {
+              setScreen('journal');
+              speak("Mở nhật ký học tập");
+            }}
+            title="Xem nhật ký học tập"
+          >
+            📜 Nhật Ký
+          </button>
+          
           <div className="stat-badge streak">
             🔥 {streak}
           </div>
@@ -655,6 +746,13 @@ function App() {
               }}>
                 📖 Bảng Học Tập
               </button>
+
+              <button className="sticker-book-btn" style={{ borderColor: 'var(--color-pink)', color: 'var(--color-pink-dark)', boxShadow: '0 6px 0 var(--color-pink)' }} onClick={() => {
+                setScreen('journal');
+                speak("Mở nhật ký học tập và bảng vàng thành tích.");
+              }}>
+                📜 Nhật Ký Học Tập
+              </button>
             </div>
           </div>
         )}
@@ -718,15 +816,34 @@ function App() {
 
             {showGameFinished ? (
               // GAME FINISHED SPLASH SCREEN
-              <div style={{ textAlign: 'center', padding: '40px 10px', animation: 'popIn 0.5s' }}>
-                <h2 style={{ fontSize: '2.5rem', color: 'var(--color-success-dark)', marginBottom: '15px' }}>🎉 Hoàn Thành Xuất Sắc! 🎉</h2>
-                <div style={{ fontSize: '5rem', margin: '20px 0' }}>🏆✨🦕</div>
-                <p style={{ fontSize: '1.4rem', color: 'var(--text-light)', marginBottom: '30px' }}>
-                  Bé đã vượt qua 20 câu hỏi toán và nhận thêm <strong style={{ color: 'var(--color-warning-dark)' }}>⭐ 10 sao vàng</strong> thưởng!
-                </p>
-                <div style={{ display: 'flex', gap: '20px', justifyContent: 'center' }}>
+              <div className="finished-card" style={{ textAlign: 'center', padding: '30px 10px', animation: 'popIn 0.5s' }}>
+                <h2 style={{ fontSize: '2.4rem', color: 'var(--color-success-dark)', marginBottom: '10px' }}>🎉 Hoàn Thành Xuất Sắc! 🎉</h2>
+                
+                {latestResult && (
+                  <div className="medal-showcase" style={{ margin: '20px auto', padding: '20px', background: 'rgba(255, 255, 255, 0.9)', borderRadius: '24px', maxWidth: '400px', border: '3px dashed var(--color-warning-light)', boxShadow: '0 8px 24px rgba(0,0,0,0.05)' }}>
+                    <div className="medal-sparkle" style={{ fontSize: '5rem', display: 'inline-block', filter: 'drop-shadow(0 6px 8px rgba(0,0,0,0.15))' }}>{latestResult.medalEmoji}</div>
+                    <h3 className="medal-name" style={{ fontSize: '1.6rem', color: 'var(--text-dark)', marginTop: '10px', fontWeight: '800' }}>{latestResult.medalName}</h3>
+                    <div className="score-summary" style={{ fontSize: '1.25rem', color: 'var(--text-light)', margin: '12px 0', fontWeight: '700' }}>
+                      Đúng <span style={{ color: 'var(--color-success-dark)', fontSize: '1.4rem' }}>{latestResult.correctCount} / 20</span> câu ngay lần đầu!
+                    </div>
+                    <div className="award-stars-text" style={{ fontSize: '1.2rem', color: 'var(--text-dark)', fontWeight: 'bold' }}>
+                      Bé nhận thêm <span style={{ color: 'var(--color-warning-dark)', fontSize: '1.4rem' }}>⭐ {10 + latestResult.bonusStars} sao vàng</span> thưởng!
+                    </div>
+                    <div style={{ fontSize: '0.9rem', color: 'var(--text-light)', marginTop: '4px', fontStyle: 'italic' }}>
+                      (10 sao hoàn thành + {latestResult.bonusStars} sao huy chương)
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', flexWrap: 'wrap', marginTop: '25px' }}>
                   <button className="sticker-book-btn" onClick={() => startGame(mode)}>
                     🔄 Chơi lại màn này
+                  </button>
+                  <button className="sticker-book-btn" style={{ borderColor: 'var(--color-pink)', color: 'var(--color-pink-dark)', boxShadow: '0 6px 0 var(--color-pink)' }} onClick={() => {
+                    setScreen('journal');
+                    speak("Mở nhật ký học tập");
+                  }}>
+                    📜 Nhật Ký Học Tập
                   </button>
                   <button className="sticker-book-btn" style={{ borderColor: 'var(--color-primary)', color: 'var(--color-primary-dark)', boxShadow: '0 6px 0 var(--color-primary)' }} onClick={() => setScreen('home')}>
                     🏠 Về trang chủ
@@ -943,6 +1060,163 @@ function App() {
             {/* Table Rows list */}
             <div className="study-table-container">
               {renderStudyTable()}
+            </div>
+          </div>
+        )}
+
+        {/* SCREEN: LEARNING JOURNAL & ACHIEVEMENTS */}
+        {screen === 'journal' && (
+          <div className="sticker-book-screen">
+            <div className="sticker-title-bar">
+              <h2>📜 Nhật Ký Học Tập Của Bé</h2>
+              <button className="back-btn" onClick={() => {
+                setScreen('home');
+                speak("Trở về màn hình chính");
+              }}>
+                🏠 Trang chủ
+              </button>
+            </div>
+
+            <p style={{ color: 'var(--text-light)', marginBottom: '20px', fontSize: '1.1rem' }}>
+              Nơi ghi nhận các phần thưởng huy chương và kết quả học tập của bé để bố mẹ cùng đánh giá! 🌟
+            </p>
+
+            {/* Medal Achievements Card */}
+            <div className="journal-medals-summary" style={{
+              background: 'rgba(255, 255, 255, 0.9)',
+              borderRadius: '24px',
+              padding: '20px',
+              border: '2px solid #E1E8EE',
+              marginBottom: '25px',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.03)'
+            }}>
+              <h3 style={{ fontSize: '1.3rem', color: 'var(--text-dark)', marginBottom: '15px', fontWeight: '800', textAlign: 'center' }}>
+                🏆 Bảng Vàng Danh Hiệu Đã Đạt
+              </h3>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', textAlign: 'center' }}>
+                <div style={{ background: '#FFFEE0', padding: '10px 4px', borderRadius: '16px', border: '2px solid #FFE082' }}>
+                  <div style={{ fontSize: '2.5rem' }}>🏆</div>
+                  <div style={{ fontWeight: 'bold', fontSize: '0.9rem', color: '#B38000', margin: '4px 0' }}>Cúp Vàng</div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: '800', color: 'var(--text-dark)' }}>
+                    {records.filter(r => r.medal === 'gold').length}
+                  </div>
+                </div>
+                <div style={{ background: '#F8F9FA', padding: '10px 4px', borderRadius: '16px', border: '2px solid #DEE2E6' }}>
+                  <div style={{ fontSize: '2.5rem' }}>🥈</div>
+                  <div style={{ fontWeight: 'bold', fontSize: '0.9rem', color: '#6C757D', margin: '4px 0' }}>Huy Chương Bạc</div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: '800', color: 'var(--text-dark)' }}>
+                    {records.filter(r => r.medal === 'silver').length}
+                  </div>
+                </div>
+                <div style={{ background: '#FFF5F0', padding: '10px 4px', borderRadius: '16px', border: '2px solid #FFD0B8' }}>
+                  <div style={{ fontSize: '2.5rem' }}>🥉</div>
+                  <div style={{ fontWeight: 'bold', fontSize: '0.9rem', color: '#C86430', margin: '4px 0' }}>Huy Chương Đồng</div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: '800', color: 'var(--text-dark)' }}>
+                    {records.filter(r => r.medal === 'bronze').length}
+                  </div>
+                </div>
+                <div style={{ background: '#FFF0F5', padding: '10px 4px', borderRadius: '16px', border: '2px solid #FFC2D4' }}>
+                  <div style={{ fontSize: '2.5rem' }}>🏅</div>
+                  <div style={{ fontWeight: 'bold', fontSize: '0.9rem', color: '#D6336C', margin: '4px 0' }}>Cố Gắng</div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: '800', color: 'var(--text-dark)' }}>
+                    {records.filter(r => r.medal === 'effort').length}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* History Logs Card */}
+            <div className="journal-history-card" style={{
+              background: 'rgba(255, 255, 255, 0.8)',
+              borderRadius: '24px',
+              padding: '20px',
+              border: '2px solid #E1E8EE',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.03)'
+            }}>
+              <h3 style={{ fontSize: '1.3rem', color: 'var(--text-dark)', marginBottom: '15px', fontWeight: '800' }}>
+                📝 Nhật Ký Chi Tiết Luyện Tập
+              </h3>
+
+              {records.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 10px', color: 'var(--text-light)', fontSize: '1.1rem' }}>
+                  🦖 Bé chưa có bản ghi học tập nào. Hãy bắt đầu luyện tập một phép tính bất kỳ nhé!
+                </div>
+              ) : (
+                <>
+                  <div className="journal-list" style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '350px', overflowY: 'auto', paddingRight: '6px' }}>
+                    {records.map((rec) => (
+                      <div key={rec.id} className="journal-item" style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        background: 'white',
+                        padding: '12px 16px',
+                        borderRadius: '16px',
+                        border: '2px solid #F1F3F5',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.01)'
+                      }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <span style={{ fontSize: '0.85rem', color: '#ADB5BD', fontWeight: '600' }}>🕒 {rec.date}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span className="stat-badge" style={{
+                              fontSize: '0.85rem',
+                              padding: '2px 8px',
+                              borderWidth: '2px',
+                              borderColor: rec.mode === 'mixed' ? 'var(--color-pink-light)' : 'var(--color-primary-light)',
+                              color: rec.mode === 'mixed' ? 'var(--color-pink-dark)' : 'var(--color-primary-dark)',
+                              background: rec.mode === 'mixed' ? '#FFF0F6' : '#E3F2FD',
+                              boxShadow: 'none'
+                            }}>
+                              {rec.mode === 'mixed' ? '🔀 Hỗn Hợp' : 
+                               rec.mode === 'plus' ? '➕ Phép Cộng' :
+                               rec.mode === 'minus' ? '➖ Phép Trừ' :
+                               rec.mode === 'multiply' ? '✖ Phép Nhân' : '➗ Phép Chia'}
+                            </span>
+                            <span style={{ fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--text-light)' }}>
+                              {rec.range}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontSize: '1.05rem', fontWeight: '800', color: 'var(--text-dark)' }}>
+                              Đúng <span style={{ color: rec.correctCount >= 18 ? 'var(--color-success)' : 'var(--color-orange-dark)' }}>{rec.correctCount} / 20</span>
+                            </div>
+                            <div style={{ fontSize: '0.85rem', color: 'var(--color-warning-dark)', fontWeight: 'bold' }}>
+                              ⭐ +{10 + rec.bonusStars} Sao
+                            </div>
+                          </div>
+                          <span style={{ fontSize: '2.5rem', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.08))' }} title={rec.medalName}>
+                            {rec.medalEmoji}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'center', marginTop: '20px' }}>
+                    <button 
+                      className="back-btn" 
+                      style={{ 
+                        borderColor: 'var(--color-danger)', 
+                        color: 'var(--color-danger-dark)', 
+                        background: '#FFF0F6',
+                        fontSize: '0.95rem',
+                        padding: '6px 14px'
+                      }}
+                      onClick={() => {
+                        if (window.confirm("Bố mẹ có chắc chắn muốn xóa toàn bộ lịch sử học tập của bé không?")) {
+                          setRecords([]);
+                          speak("Đã xóa toàn bộ nhật ký học tập");
+                        }
+                      }}
+                    >
+                      🗑️ Xóa tất cả nhật ký
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}
